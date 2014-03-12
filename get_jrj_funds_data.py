@@ -1,6 +1,14 @@
 #!/usr/bin/python
 #coding=utf-8
 # 利用urllib2抓取金融界网站上的基金收益数据
+
+# TODO:
+# 1、改变输入参数定期从网上抓取所有的数据，加上一些头浏览器头信息避免被封
+# 2、使输入的设置更为灵活，日期的输入避免输入周末，datetime.date.weekday() ~= 5,6
+# 3、判断库中已有的数据
+# 4、抓取基金公司名称的数据
+# 5、抓取基金十大持仓相关的数据
+
 import urllib, urllib2, re, io, os.path, datetime, json
 
 from sqlalchemy import *
