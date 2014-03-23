@@ -6,14 +6,16 @@
 # 1、加上一些头浏览器头信息避免被封
 # 2、抓取基金公司名称的数据
 # 3、抓取基金十大持仓相关的数据
+# 4、sqlalchemy 映射相关类重用
 
 import urllib, urllib2, re, io, os.path, datetime, json
+import ConfigParser
 
 from sqlalchemy import *
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
-def data2mysql(engine,funds,data_date):
+def data2mysql(engine,funds):
     metadata = MetaData(bind=engine)
     Base = declarative_base(metadata)
 
@@ -42,9 +44,9 @@ def data2mysql(engine,funds,data_date):
         # 如果库中已经有此基金对应此日期的数据，则不再更新
         if not session.query(Funds_value.value_data_id).filter(\
             Funds_value.fund_code == fund_data['fund_code'],\
-                Funds_value.value_date == data_date).all():
+                Funds_value.value_date == fund_data['value_date']).all():
             item = Funds_value(fund_code=fund_data['fund_code'],\
-                                   value_date = data_date, \
+                                   value_date = fund_data['value_date'], \
                                    value_curr = float(fund_data['value_curr']), \
                                    value_leiji = float(fund_data['value_leiji']))
             session.add(item)            
@@ -53,17 +55,18 @@ def data2mysql(engine,funds,data_date):
 
 # 从金融界网站上抓取基金净值数据信息，输入参数为日期
 def get_jrj_data(data_date):
-    if data_date == 5:
+    weekday = data_date.weekday()
+    if weekday == 5:
         data_date = data_date - datetime.timedelta(1)
-    elif data_date == 6:
+    elif weekday == 6:
         data_date = data_date - datetime.timedelta(2)
            
-    if data_date.weekday() == 0:
+    if weekday == 0:
         data_date_1 = data_date - datetime.timedelta(3)
     else:
         data_date_1 = data_date - datetime.timedelta(1)
         
-    datafile_name = 'cache/' + data_date.strftime('%Y%m%d') + \
+    datafile_name = '/tmp/' + data_date.strftime('%Y%m%d') + \
     'funds_jrj.dat'
 
     # 如果cache目录下已经有了下载好的数据文件，则不必再下载一次
@@ -91,21 +94,38 @@ def get_jrj_data(data_date):
     for line in funds_raw:
         temp  = json.loads(line)
         funds[i] = {'fund_code':temp[1],'fund_name':temp[2],\
-                        'value_curr':temp[4], 'value_leiji':temp[6]}
+                        'value_curr':temp[4], 'value_leiji':temp[6], \
+                        'value_date':data_date}
         i = i + 1
     return funds
 
 if __name__ == "__main__":
-    engine = create_engine('mysql://lxq:yumeng@localhost/lxq_fundsdb?charset=utf8')
-    curr_date = datetime.datetime.now().date()
+    cf = ConfigParser.ConfigParser()
+    cf.read('funds_data.ini')
+    db_user = cf.get('main', 'db_user')
+    db_pass = cf.get('main', 'db_pass')
+    db_host = cf.get('main', 'db_host')
+    db_name = cf.get('main', 'db_name')
+    curr_date_str = cf.get('main', 'curr_date')
+    if curr_date_str == '':
+        curr_date = datetime.datetime.now().date()
+    else:
+        curr_date = datetime.datetime.strptime(curr_date_str, '%Y%m%d').date()
+    engine_str = 'mysql://%s:%s@%s/%s?charset=utf8' % (db_user,db_pass,db_host,db_name)
+    engine = create_engine(engine_str)
     t1 = datetime.datetime.now()
-    for i in range(365):        
+    try:
+        date_range = cf.getint('main','date_range')
+    except:
+        date_range = 1
+    
+    for i in range(date_range):
         print u'开始抓取数据' + curr_date.strftime('%Y%m%d') + '...'
         funds = get_jrj_data(curr_date)
         print u'抓取数据耗时 %ss' % (datetime.datetime.now() - t1).total_seconds()
-        print u'开始导入数据库...'
+        print u'开始导入数据库... %s' % funds[0]['value_date'].strftime('%Y%m%d')
         t1 = datetime.datetime.now()
-        data2mysql(engine, funds, curr_date)
+        data2mysql(engine, funds)
         print u'导入数据耗时 %ss' % (datetime.datetime.now() - t1).total_seconds()
         curr_date -= datetime.timedelta(1)
 
