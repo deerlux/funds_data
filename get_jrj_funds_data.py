@@ -14,6 +14,8 @@ import ConfigParser
 from sqlalchemy import *
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+import argparse
+
 
 def data2mysql(engine,funds):
     metadata = MetaData(bind=engine)
@@ -100,25 +102,47 @@ def get_jrj_data(data_date):
     return funds
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--host')
+    parser.add_argument('--user')
+    parser.add_argument('--passwd')
+    parser.add_argument('--db')
+    parser.add_argument('configfile',nargs='*')
+
+    args = parser.parse_args()
+
     cf = ConfigParser.ConfigParser()
-    cf.read('funds_data.ini')
-    db_user = cf.get('main', 'db_user')
-    db_pass = cf.get('main', 'db_pass')
-    db_host = cf.get('main', 'db_host')
-    db_name = cf.get('main', 'db_name')
-    curr_date_str = cf.get('main', 'curr_date')
-    if curr_date_str == '':
-        curr_date = datetime.datetime.now().date()
+    if args.configfile:
+        cf.read(args.configfile)
+        db_user = cf.get('main', 'db_user')
+        db_pass = cf.get('main', 'db_pass')
+        db_host = cf.get('main', 'db_host')
+        db_name = cf.get('main', 'db_name')
+        curr_date_str = cf.get('main', 'curr_date')
+        if curr_date_str == '':
+            curr_date = datetime.datetime.now().date()
+        else:
+            curr_date = datetime.datetime.strptime(curr_date_str, '%Y%m%d').date()
+        try:
+            date_range = cf.getint('main','date_range')
+        except:
+            date_range = 1
     else:
-        curr_date = datetime.datetime.strptime(curr_date_str, '%Y%m%d').date()
-    engine_str = 'mysql://%s:%s@%s/%s?charset=utf8' % (db_user,db_pass,db_host,db_name)
-    engine = create_engine(engine_str)
-    t1 = datetime.datetime.now()
-    try:
-        date_range = cf.getint('main','date_range')
-    except:
+        db_user = args.user
+        db_pass = args.passwd
+        db_host = args.host
+        db_name = args.db
+        curr_date = datetime.datetime.now().date()
         date_range = 1
-    
+    engine_str = 'mysql://%s:%s@%s/%s?charset=utf8' % (db_user,db_pass,db_host,db_name)
+
+    try:
+        engine = create_engine(engine_str)
+        connect = engine.connect()
+    except:
+        print "请输入正确的数据库相关参数，或者通过命令行或者通过配置文件"
+
+    t1 = datetime.datetime.now()    
     for i in range(date_range):
         print u'开始抓取数据' + curr_date.strftime('%Y%m%d') + '...'
         funds = get_jrj_data(curr_date)
