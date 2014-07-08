@@ -1,12 +1,14 @@
 #!/usr/bin/python
 #coding=utf-8
-# 利用urllib2抓取金融界网站上的基金收益数据
+""" 利用urllib2抓取金融界网站上的基金收益数据
+USAGE:
 
-# TODO:
-# 1、加上一些头浏览器头信息避免被封
-# 2、抓取基金公司名称的数据
-# 3、抓取基金十大持仓相关的数据
-# 4、sqlalchemy 映射相关类重用
+ TODO:
+ 1、加上一些头浏览器头信息避免被封
+ 2、抓取基金公司名称的数据
+ 3、抓取基金十大持仓相关的数据
+ 4、sqlalchemy 映射相关类重用
+"""
 
 import urllib, urllib2, re, io, os.path, datetime, json
 import ConfigParser
