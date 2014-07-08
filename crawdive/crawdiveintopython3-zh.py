@@ -11,9 +11,12 @@ if __name__ == "__main__":
     index_html = urllib2.urlopen(_url).read()
     soup = bp(index_html)
     hrefs = [link.get('href') for link in soup.find_all('a')]
-    print(hrefs)
-    hrefs = [x for x in hrefs if str(x).endswith('.html')]
-    print('\n'.join(hrefs))
+    # print(hrefs)
+    hrefs1 = [str(x) for x in hrefs]
+    # html_filter = lambda x: x.endswith('html')
+    hrefs1 = [x for x in hrefs1 if x.endswith('.html')]
+    print('\n'.join(hrefs1))
+    
 
 
         
