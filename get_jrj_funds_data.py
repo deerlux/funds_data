@@ -155,17 +155,3 @@ if __name__ == "__main__":
         print u'导入数据耗时 %ss' % (datetime.datetime.now() - t1).total_seconds()
         curr_date -= datetime.timedelta(1)
 
-
-
-  
-        
-                                        
-                                      
-    
-    
-
-
-
-
-
-
