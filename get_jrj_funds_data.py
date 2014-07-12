@@ -8,6 +8,9 @@ USAGE:
  2、抓取基金公司名称的数据
  3、抓取基金十大持仓相关的数据
  4、sqlalchemy 映射相关类重用
+
+$author$
+$date$
 """
 
 import urllib, urllib2, re, io, os.path, datetime, json
