@@ -8,6 +8,8 @@ USAGE:
  2、抓取基金公司名称的数据
  3、抓取基金十大持仓相关的数据
  4、sqlalchemy 映射相关类重用
+ 5、缺失的数据再针对每一项基金进行抓取
+ 6、用纯净的db-api测试一下速度
 
 @author $author$
 $Id$
@@ -49,10 +51,6 @@ def data2db(engine,funds):
     funds_code_in = set([ x['fund_code'] for x in funds ])
     funds_code_curr = set([x[0] for x in session.query(Funds_list.fund_code).all()])
     funds_code_new = funds_code_in - funds_code_curr
-#    print funds_code_new
-
-#    items = {}
-#    i=0
     for fund_data in funds:
        # 如果funds_list表中没有此基金对应的条目则先更新funds_list表
         if fund_data['fund_code'] in funds_code_new:
@@ -156,7 +154,7 @@ def get_ourku_data(data_date):
             'value_curr':x[2], \
             'value_leiji':x[3],\
             'value_date':data_date} \
-            for x in funds_data_o]
+            for x in funds_data]
     return funds_data
 
 if __name__ == "__main__":
@@ -172,17 +170,19 @@ if __name__ == "__main__":
     cf = ConfigParser.ConfigParser()
     if args.configfile:
         cf.read(args.configfile)
-        db_user = cf.get('main', 'db_user')
-        db_pass = cf.get('main', 'db_pass')
-        db_host = cf.get('main', 'db_host')
-        db_name = cf.get('main', 'db_name')
-        curr_date_str = cf.get('main', 'curr_date')
+        db_user = cf.get('database', 'db_user')
+        db_pass = cf.get('database', 'db_pass')
+        db_host = cf.get('database', 'db_host')
+        db_name = cf.get('database', 'db_name')
+        dbms = cf.get('database', 'dbms')
+        curr_date_str = cf.get('fetch', 'curr_date')
         if curr_date_str == '':
             curr_date = datetime.datetime.now().date()
         else:
             curr_date = datetime.datetime.strptime(curr_date_str, '%Y%m%d').date()
+
         try:
-            date_range = cf.getint('main','date_range')
+            date_range = cf.getint('fetch','date_range')
         except:
             date_range = 1
     else:
@@ -192,7 +192,12 @@ if __name__ == "__main__":
         db_name = args.db
         curr_date = datetime.datetime.now().date()
         date_range = 1
-    engine_str = 'mysql://%s:%s@%s/%s?charset=utf8' % (db_user,db_pass,db_host,db_name)
+    if dbms == 'mysql':
+        engine_str = 'mysql://%s:%s@%s/%s?charset=utf8' % (db_user,db_pass,db_host,db_name)
+    elif dbms == 'postgresql':
+        engine_str = 'postgres://%s:%s@%s/%s' % (db_user,db_pass,db_host,db_name)
+    else:
+        raise Exception('Error dbms parameter in configure file!')
 
     try:
         engine = create_engine(engine_str)
@@ -203,11 +208,11 @@ if __name__ == "__main__":
     t1 = datetime.datetime.now()    
     for i in range(date_range):
         print u'开始抓取数据' + curr_date.strftime('%Y%m%d') + '...'
-        funds = get_jrj_data(curr_date)
+        funds = get_ourku_data(curr_date)
         print u'抓取数据耗时 %ss' % (datetime.datetime.now() - t1).total_seconds()
         print u'开始导入数据库... %s' % funds[0]['value_date'].strftime('%Y%m%d')
         t1 = datetime.datetime.now()
-        data2mysql(engine, funds)
+        data2db(engine, funds)
         print u'导入数据耗时 %ss' % (datetime.datetime.now() - t1).total_seconds()
         curr_date -= datetime.timedelta(1)
 
