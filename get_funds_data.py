@@ -22,8 +22,19 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 import argparse
 
+def weekend_proc(in_date):
+    '''判断是否是周末，如果是周末的话自动将日期减1或2换算成周五
+    in_date     是一个日期类型的变量
+    返回值：    更新后的日期'''
+    weekday = in_date.weekday()
+    if weekday == 5:
+        return in_date - datetime.timedelta(1)
+    elif weekday == 6:
+        return in_date - datetime.timedelta(2)
+    else:
+        return in_date
 
-def data2mysql(engine,funds):
+def data2db(engine,funds):
     metadata = MetaData(bind=engine)
     Base = declarative_base(metadata)
 
@@ -106,6 +117,47 @@ def get_jrj_data(data_date):
                         'value_date':data_date}
         i = i + 1
     return funds
+
+def get_ourku_data(data_date):
+    """从ourku.com网站抓取基金数据
+    data_date   要抓取的基金数据日期
+    返回值：    基金数据字典数据{fund_code:, fund_name: , value_curr:, value_leiji:, value_date: }
+    """
+    # 获取ourku的数据
+    data_date = weekend_proc(data_date)
+
+    today = datetime.date.today()
+    if data_date == today:
+        url = r'http://www.ourku.com/index.html'
+        req = urllib2.Reques(url)
+    elif data_date > today:
+        print("Error input data_date: %s for `get_ourku_data` function!" % str(data_date))
+        return []
+    else:
+        url = r'http://www.ourku.com/indexMore.php'
+        para = {'date':data_date.strftime('%Y-%m-%d')}
+        req = urllib2.Request(url,urllib.urlencode(para))
+    response = urllib2.urlopen(req)
+    the_page = response.read().decode('gbk')
+    
+    # 用正则表达式过滤基金数据
+    date_str = data_date.strftime('%Y-%m-%d')
+    temp = '''<td>%s</td>
+<td>(\d{6})</td>
+<td>(.+)</td>
+<td>(.+)</td>
+<td>(.+)</td>'''
+    pattern = re.compile(temp % data_date.strftime('%Y-%m-%d'))
+    funds_data = pattern.findall(the_page)
+    
+    # 将数据转换成为字典列表的形式
+    funds_data = [{'fund_code':x[0], \
+            'fund_name':x[1], \
+            'value_curr':x[2], \
+            'value_leiji':x[3],\
+            'value_date':data_date} \
+            for x in funds_data_o]
+    return funds_data
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
