@@ -9,6 +9,8 @@ USAGE:
  3、抓取基金十大持仓相关的数据
  4、sqlalchemy 映射相关类重用
  5、缺失的数据再针对每一项基金进行抓取
+ 6、ourku抓取当天的数据解析还有问题，历史数据抓取没有问题
+ 7、ourku添加不重复抓取的判断，在/tmp下存储判断结果
  
  20140716: 纯净的DB-API访问，并且批量提交insert语句速度会提高很多，由20多秒
  减少到3-5秒, 但是构造SQL语句的过程中由于涉及大量的裸字符串处理，很容易出错。
@@ -109,27 +111,34 @@ def data2db(engine,funds):
     
     Session = sessionmaker(bind=engine)
     session = Session()
+
     funds_code_in = set([ x['fund_code'] for x in funds ])
     funds_code_curr = set([x[0] for x in session.query(Funds_list.fund_code).all()])
     funds_code_new = funds_code_in - funds_code_curr
+    
+    funds_list_items=[]
+    funds_value_items=[]
     for fund_data in funds:
        # 如果funds_list表中没有此基金对应的条目则先更新funds_list表
         if fund_data['fund_code'] in funds_code_new:
-            item = Funds_list(fund_code=fund_data['fund_code'], \
-                                  fund_name = fund_data['fund_name'])
-            session.add(item)
-    for fund_data in funds:
+            item = Funds_list(fund_code=fund_data['fund_code'],
+                    fund_name = fund_data['fund_name'])
+            funds_list_items.append(item)
+    
         # 如果库中已经有此基金对应此日期的数据，则不再更新
-        if not session.query(Funds_value.value_data_id).filter(\
-            Funds_value.fund_code == fund_data['fund_code'],\
+        if not session.query(Funds_value.value_data_id).filter(
+                Funds_value.fund_code == fund_data['fund_code'],
                 Funds_value.value_date == fund_data['value_date']).all():
-            item = Funds_value(fund_code=fund_data['fund_code'],\
-                                   value_date = fund_data['value_date'], \
-                                   value_curr = float(fund_data['value_curr']), \
-                                   value_leiji = float(fund_data['value_leiji']))
-            session.add(item)            
+            item = Funds_value(fund_code=fund_data['fund_code'],
+                    value_date = fund_data['value_date'],
+                    value_curr = float(fund_data['value_curr']),
+                    value_leiji = float(fund_data['value_leiji']))
+            funds_value_items.append(item)
+    if funds_list_items:
+        session.add_all(funds_list_items)
+    if funds_value_items:
+        session.add_all(funds_value_items)
     session.commit()
-
 
 # 从金融界网站上抓取基金净值数据信息，输入参数为日期
 def get_jrj_data(data_date):
