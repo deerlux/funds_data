@@ -9,7 +9,9 @@ USAGE:
  3、抓取基金十大持仓相关的数据
  4、sqlalchemy 映射相关类重用
  5、缺失的数据再针对每一项基金进行抓取
- 6、用纯净的db-api测试一下速度
+ 
+ 20140716: 纯净的DB-API访问，并且批量提交insert语句速度会提高很多，由20多秒
+ 减少到3-5秒, 但是构造SQL语句的过程中由于涉及大量的裸字符串处理，很容易出错。
 
 @author $author$
 $Id$
@@ -35,8 +37,67 @@ def weekend_proc(in_date):
         return in_date - datetime.timedelta(2)
     else:
         return in_date
+def data2db_simple(conn, funds):
+    '''利用DB-API实现数据导入到数据库中。
+    conn:       符合DB-API规范的数据库连接变量
+    funds:      [{'fund_code':, 'fund_name':, 'value_curr':, 'value_leiji':}]
+    '''
+
+    cursor = conn.cursor()
+    
+    funds_code_in = set([x['fund_code'] for x in funds])
+    
+    sql = 'select fund_code from funds_list'
+    cursor.execute(sql)
+    funds_code_curr = set([x[0] for x in cursor.fetchall()])
+    
+    # 新的基金列表集合
+    funds_code_new = funds_code_in - funds_code_curr
+    funds_list_values = []
+    funds_value_values = []
+    for fund_data in funds:
+        # 如果原有的基金列表中没有些基金，则先更新基金列表
+        if fund_data['fund_code'] in funds_code_new:
+            temp = u"('{0}', '{1}')".format(fund_data['fund_code'], 
+                    fund_data['fund_name'])
+            funds_list_values.append(temp)
+
+        # 查询funds_value数据库中有没有对应的数据
+        sql = '''select value_data_id from funds_value 
+        where fund_code = '{0}' and value_date = '{1}' '''.format(
+                fund_data['fund_code'],
+                '{0}'.format(fund_data['value_date'].strftime('%Y-%m-%d')))
+        cursor.execute(sql)
+        
+        #如果没有对应的数据则更新
+        if not cursor.fetchall():
+            temp = "('{0}', {1}, {2}, '{3}')".format(
+                    fund_data['fund_code'],
+                    fund_data['value_curr'],
+                    fund_data['value_leiji'],
+                    '{0}'.format(fund_data['value_date'].strftime('%Y-%m-%d')))
+            funds_value_values.append(temp)
+    
+    # 利用上述数据构造SQL语句并执行向funds_list表中插入数据
+    if funds_list_values:
+        sql = 'insert into funds_list (fund_code, fund_name) values ' 
+        sql += ','.join(funds_list_values)
+        cursor.execute(sql)
+    
+    # 利用上述数据构造SQL语句并执行向funds_value表中插入数据
+    sql = '''insert into funds_value 
+    (fund_code, value_curr, value_leiji, value_date) values '''
+    sql += ','.join(funds_value_values)
+    cursor.execute(sql)
+    
+    conn.commit()
+    
 
 def data2db(engine,funds):
+    '''利用sqlalchemy实现数据导入到数据库中。
+    engine:     输入的sqlalchemy engine变量
+    funds:      [{'fund_code':, 'fund_name':, 'value_curr':, 'value_leiji':}]
+    '''
     metadata = MetaData(bind=engine)
     Base = declarative_base(metadata)
 
@@ -127,7 +188,7 @@ def get_ourku_data(data_date):
     today = datetime.date.today()
     if data_date == today:
         url = r'http://www.ourku.com/index.html'
-        req = urllib2.Reques(url)
+        req = urllib2.Request(url)
     elif data_date > today:
         print("Error input data_date: %s for `get_ourku_data` function!" % str(data_date))
         return []
@@ -149,12 +210,12 @@ def get_ourku_data(data_date):
     funds_data = pattern.findall(the_page)
     
     # 将数据转换成为字典列表的形式
-    funds_data = [{'fund_code':x[0], \
-            'fund_name':x[1], \
-            'value_curr':x[2], \
-            'value_leiji':x[3],\
-            'value_date':data_date} \
-            for x in funds_data]
+    funds_data = [{'fund_code':x[0],
+        'fund_name':x[1],
+        'value_curr':x[2],
+        'value_leiji':x[3],
+        'value_date':data_date}
+        for x in funds_data]
     return funds_data
 
 if __name__ == "__main__":
@@ -201,7 +262,10 @@ if __name__ == "__main__":
 
     try:
         engine = create_engine(engine_str)
-        connect = engine.connect()
+        # connect = engine.connect()
+        import psycopg2
+        connect = psycopg2.connect(database = db_name, user = db_user,
+                password=db_pass, host = db_host)
     except:
         print "请输入正确的数据库相关参数，或者通过命令行或者通过配置文件"
 
@@ -212,7 +276,7 @@ if __name__ == "__main__":
         print u'抓取数据耗时 %ss' % (datetime.datetime.now() - t1).total_seconds()
         print u'开始导入数据库... %s' % funds[0]['value_date'].strftime('%Y%m%d')
         t1 = datetime.datetime.now()
-        data2db(engine, funds)
+        data2db_simple(connect, funds)
         print u'导入数据耗时 %ss' % (datetime.datetime.now() - t1).total_seconds()
         curr_date -= datetime.timedelta(1)
 
