@@ -9,11 +9,12 @@ USAGE:
  3、抓取基金十大持仓相关的数据
  4、sqlalchemy 映射相关类重用
  5、缺失的数据再针对每一项基金进行抓取
- 6、ourku抓取当天的数据解析还有问题，历史数据抓取没有问题
- 7、ourku添加不重复抓取的判断，在/tmp下存储判断结果
- 
+
  20140716: 纯净的DB-API访问，并且批量提交insert语句速度会提高很多，由20多秒
  减少到3-5秒, 但是构造SQL语句的过程中由于涉及大量的裸字符串处理，很容易出错。
+
+ 20140717: 纯净的DB-API访问更新1600条左右记录费时约3秒，大部分时间在中间那些
+ 判断处。ORM优化后更新1600条记录费时约12秒，大部分时间在中间那些判断处。
 
 @author $author$
 $Id$
@@ -46,13 +47,13 @@ def data2db_simple(conn, funds):
     '''
 
     cursor = conn.cursor()
-    
+
     funds_code_in = set([x['fund_code'] for x in funds])
-    
+
     sql = 'select fund_code from funds_list'
     cursor.execute(sql)
     funds_code_curr = set([x[0] for x in cursor.fetchall()])
-    
+
     # 新的基金列表集合
     funds_code_new = funds_code_in - funds_code_curr
     funds_list_values = []
@@ -60,17 +61,17 @@ def data2db_simple(conn, funds):
     for fund_data in funds:
         # 如果原有的基金列表中没有些基金，则先更新基金列表
         if fund_data['fund_code'] in funds_code_new:
-            temp = u"('{0}', '{1}')".format(fund_data['fund_code'], 
+            temp = u"('{0}', '{1}')".format(fund_data['fund_code'],
                     fund_data['fund_name'])
             funds_list_values.append(temp)
 
         # 查询funds_value数据库中有没有对应的数据
-        sql = '''select value_data_id from funds_value 
+        sql = '''select value_data_id from funds_value
         where fund_code = '{0}' and value_date = '{1}' '''.format(
                 fund_data['fund_code'],
                 '{0}'.format(fund_data['value_date'].strftime('%Y-%m-%d')))
         cursor.execute(sql)
-        
+
         #如果没有对应的数据则更新
         if not cursor.fetchall():
             temp = "('{0}', {1}, {2}, '{3}')".format(
@@ -79,26 +80,31 @@ def data2db_simple(conn, funds):
                     fund_data['value_leiji'],
                     '{0}'.format(fund_data['value_date'].strftime('%Y-%m-%d')))
             funds_value_values.append(temp)
-    
+
     # 利用上述数据构造SQL语句并执行向funds_list表中插入数据
     if funds_list_values:
-        sql = 'insert into funds_list (fund_code, fund_name) values ' 
+        sql = 'insert into funds_list (fund_code, fund_name) values '
         sql += ','.join(funds_list_values)
         cursor.execute(sql)
-    
+        conn.commit()
+
     # 利用上述数据构造SQL语句并执行向funds_value表中插入数据
-    sql = '''insert into funds_value 
-    (fund_code, value_curr, value_leiji, value_date) values '''
-    sql += ','.join(funds_value_values)
-    cursor.execute(sql)
-    
-    conn.commit()
-    
+    if funds_value_values:
+        sql = '''insert into funds_value
+        (fund_code, value_curr, value_leiji, value_date) values '''
+        sql += ','.join(funds_value_values)
+        cursor.execute(sql)
+        conn.commit()
+        return len(funds_value_values)
+    else:
+        return 0
+
 
 def data2db(engine,funds):
     '''利用sqlalchemy实现数据导入到数据库中。
     engine:     输入的sqlalchemy engine变量
     funds:      [{'fund_code':, 'fund_name':, 'value_curr':, 'value_leiji':}]
+    返回值：    更新的净值记录数
     '''
     metadata = MetaData(bind=engine)
     Base = declarative_base(metadata)
@@ -108,37 +114,37 @@ def data2db(engine,funds):
         __table__ = Table('funds_list', metadata, autoload=True)
     class Funds_value(Base):
         __table__ = Table('funds_value', metadata, autoload = True)
-    
+
     Session = sessionmaker(bind=engine)
     session = Session()
 
     funds_code_in = set([ x['fund_code'] for x in funds ])
     funds_code_curr = set([x[0] for x in session.query(Funds_list.fund_code).all()])
     funds_code_new = funds_code_in - funds_code_curr
-    
+
     funds_list_items=[]
     funds_value_items=[]
     for fund_data in funds:
        # 如果funds_list表中没有此基金对应的条目则先更新funds_list表
         if fund_data['fund_code'] in funds_code_new:
-            item = Funds_list(fund_code=fund_data['fund_code'],
-                    fund_name = fund_data['fund_name'])
-            funds_list_items.append(item)
-    
+            funds_list_items.append(fund_data)
+
         # 如果库中已经有此基金对应此日期的数据，则不再更新
         if not session.query(Funds_value.value_data_id).filter(
                 Funds_value.fund_code == fund_data['fund_code'],
                 Funds_value.value_date == fund_data['value_date']).all():
-            item = Funds_value(fund_code=fund_data['fund_code'],
-                    value_date = fund_data['value_date'],
-                    value_curr = float(fund_data['value_curr']),
-                    value_leiji = float(fund_data['value_leiji']))
-            funds_value_items.append(item)
+            funds_value_items.append(fund_data)
     if funds_list_items:
-        session.add_all(funds_list_items)
+        session.execute(Funds_list.__table__.insert(), 
+                funds_list_items)
+        session.commit()
     if funds_value_items:
-        session.add_all(funds_value_items)
-    session.commit()
+        session.execute(Funds_value.__table__.insert(),
+                funds_value_items)
+        session.commit()
+        return len(funds_value_items)
+    else:
+        return 0
 
 # 从金融界网站上抓取基金净值数据信息，输入参数为日期
 def get_jrj_data(data_date):
@@ -147,12 +153,12 @@ def get_jrj_data(data_date):
         data_date = data_date - datetime.timedelta(1)
     elif weekday == 6:
         data_date = data_date - datetime.timedelta(2)
-           
+
     if weekday == 0:
         data_date_1 = data_date - datetime.timedelta(3)
     else:
         data_date_1 = data_date - datetime.timedelta(1)
-        
+
     datafile_name = '/tmp/' + data_date.strftime('%Y%m%d') + \
     'funds_jrj.dat'
 
@@ -195,20 +201,24 @@ def get_ourku_data(data_date):
     data_date = weekend_proc(data_date)
 
     today = datetime.date.today()
-    if data_date == today:
-        url = r'http://www.ourku.com/index.html'
-        req = urllib2.Request(url)
-    elif data_date > today:
-        print("Error input data_date: %s for `get_ourku_data` function!" % str(data_date))
+    # 当天的数据解析和历史数据不一样，现不支持当天的数据
+    if data_date >= today:
+        print(u'不支持当天和未来的数据抓取，仅支持历史数据抓取')
         return []
+
+    temp_filename =  '/tmp/ourku.com-' + str(data_date) + '.dat'
+    if os.path.exists(temp_filename):
+        the_page = file(temp_filename,'r').read()
     else:
         url = r'http://www.ourku.com/indexMore.php'
         para = {'date':data_date.strftime('%Y-%m-%d')}
         req = urllib2.Request(url,urllib.urlencode(para))
-    response = urllib2.urlopen(req)
-    the_page = response.read().decode('gbk')
-    
-    # 用正则表达式过滤基金数据
+        response = urllib2.urlopen(req)
+        the_page = response.read()
+        file(temp_filename,'w').write(the_page)
+    the_page = the_page.decode('gbk')
+
+# 用正则表达式过滤基金数据
     date_str = data_date.strftime('%Y-%m-%d')
     temp = '''<td>%s</td>
 <td>(\d{6})</td>
@@ -217,7 +227,7 @@ def get_ourku_data(data_date):
 <td>(.+)</td>'''
     pattern = re.compile(temp % data_date.strftime('%Y-%m-%d'))
     funds_data = pattern.findall(the_page)
-    
+
     # 将数据转换成为字典列表的形式
     funds_data = [{'fund_code':x[0],
         'fund_name':x[1],
@@ -278,14 +288,15 @@ if __name__ == "__main__":
     except:
         print "请输入正确的数据库相关参数，或者通过命令行或者通过配置文件"
 
-    t1 = datetime.datetime.now()    
+    t1 = datetime.datetime.now()
     for i in range(date_range):
         print u'开始抓取数据' + curr_date.strftime('%Y%m%d') + '...'
         funds = get_ourku_data(curr_date)
         print u'抓取数据耗时 %ss' % (datetime.datetime.now() - t1).total_seconds()
         print u'开始导入数据库... %s' % funds[0]['value_date'].strftime('%Y%m%d')
         t1 = datetime.datetime.now()
-        data2db_simple(connect, funds)
-        print u'导入数据耗时 %ss' % (datetime.datetime.now() - t1).total_seconds()
+        rec_num = data2db_simple(connect, funds)
+        print u'共导入数据: {0}条，导入数据耗时: {1}s'.format(rec_num, 
+                (datetime.datetime.now() - t1).total_seconds())
         curr_date -= datetime.timedelta(1)
 
