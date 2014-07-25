@@ -89,7 +89,8 @@ CREATE TABLE IF NOT EXISTS funds_value (
   value_date date NOT NULL,
   value_leiji float DEFAULT NULL ,
   value_curr float DEFAULT NULL ,
-  PRIMARY KEY (value_data_id)
+  PRIMARY KEY (value_data_id),
+  UNIQUE (fund_code, value_date)
 --  KEY fund_code (fund_code)
 )    ;
 
