@@ -293,10 +293,16 @@ if __name__ == "__main__":
         print u'开始抓取数据' + curr_date.strftime('%Y%m%d') + '...'
         funds = get_ourku_data(curr_date)
         print u'抓取数据耗时 %ss' % (datetime.datetime.now() - t1).total_seconds()
-        print u'开始导入数据库... %s' % funds[0]['value_date'].strftime('%Y%m%d')
-        t1 = datetime.datetime.now()
-        rec_num = data2db_simple(connect, funds)
-        print u'共导入数据: {0}条，导入数据耗时: {1}s'.format(rec_num, 
-                (datetime.datetime.now() - t1).total_seconds())
-        curr_date -= datetime.timedelta(1)
 
+        t1 = datetime.datetime.now()
+
+        if funds:
+            print u'开始导入数据库... %s' % funds[0]['value_date'].strftime('%Y%m%d')
+            rec_num = data2db_simple(connect, funds)
+
+
+            print u'共导入数据: {0}条，导入数据耗时: {1}s'.format(rec_num, 
+                (datetime.datetime.now() - t1).total_seconds())
+        else:
+            print('抓取到的数据为0，自动跳过，检查是否此日期为节假日')
+        curr_date -= datetime.timedelta(1)
