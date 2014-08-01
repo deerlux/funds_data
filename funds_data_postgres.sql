@@ -61,7 +61,9 @@ CREATE TABLE IF NOT EXISTS funds_stock_data (
   fund_code varchar(6) NOT NULL,
   stock_code varchar(8) NOT NULL,
   public_date date DEFAULT NULL ,
-  PRIMARY KEY (fund_code,stock_code)
+  id bigserial, 
+  PRIMARY KEY (id),
+  UNIQUE (fund_code, stock_code, public_date)
 --  KEY FK_funds_stock_data2 (stock_code)
 )  ;
 
