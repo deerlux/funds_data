@@ -62,6 +62,9 @@ CREATE TABLE IF NOT EXISTS funds_stock_data (
   stock_code varchar(8) NOT NULL,
   public_date date DEFAULT NULL ,
   id bigserial, 
+  stock_amount int,
+  stock_value float, 
+  stock_value_ration float,
   PRIMARY KEY (id),
   UNIQUE (fund_code, stock_code, public_date)
 --  KEY FK_funds_stock_data2 (stock_code)
@@ -108,6 +111,15 @@ CREATE TABLE IF NOT EXISTS stock_list (
   PRIMARY KEY (stock_code)
 ) ;
 
+create TABLE funds_amount (amount_id serial,
+  fund_code varchar(6),
+  public_date date,
+  fund_amount float,
+  PRIMARY KEY (amount_id),
+  UNIQUE (fund_code, public_date, fund_amount)
+);
+                   
+
 --
 -- 限制导出的表
 --
@@ -131,6 +143,8 @@ ALTER TABLE funds_stock_data
 --
 ALTER TABLE funds_value
   ADD CONSTRAINT funds_value_ibfk_2 FOREIGN KEY (fund_code) REFERENCES funds_list (fund_code) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE funds_amount ADD CONSTRAINT funds_amount_fund_code_fk FOREIGN KEY (fund_code) references funds_list (fund_code) on delete cascade on update cascade;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
