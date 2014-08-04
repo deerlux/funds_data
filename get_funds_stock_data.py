@@ -14,7 +14,10 @@ class OurkuFundsInfoFetcher:
     def __init__(self, fund_code, season = 0, tmp_path = '/tmp'):
         '''以基金代码为初始化参数，抓取相关的数据，并将其存储在self.html变量
         中。'''
+        self.init(fund_code, season, tmp_path)
 
+    def init(self, fund_code, season = 0, tmp_path='/tmp'):
+        ''' The __init__ method replacement, used to call directly.'''
         self.fund_code = fund_code
 
         tmpfilename = os.path.join(tmp_path,
@@ -27,15 +30,16 @@ class OurkuFundsInfoFetcher:
             response = requests.get(url)
             self.html =  response.content
 
-            open(tmpfilename,'wb').write(html)
+            open(tmpfilename,'wb').write(self.html)
 
             self.html = self.html.decode('gbk')
 
     def get_stock_data(self):
         '''从ourku.com网站上抓取基金的持仓股票数据.
-        fund_code   要抓取的基金代码
-        season      抓取哪个季度的数据，默认情况下为0，表示抓取本季度数据，如果为1, 则表示抓取上推一个季度的数据，依次类推
-        返回值      为字典列表:[{'fund_code': fund_code, 'stock_code': stock_code,'public_date':public_date}]'''
+    fund_code   要抓取的基金代码
+    season      抓取哪个季度的数据，默认情况下为0，表示抓取本季度数据，如果为1,
+                则表示抓取上推一个季度的数据，依次类推
+    返回值      为字典列表:[{'fund_code': fund_code, 'stock_code': stock_code,'public_date':public_date}]'''
 
         html_tree = lxml.html.fromstring(self.html)
     
@@ -74,7 +78,29 @@ class OurkuFundsInfoFetcher:
 
         return result
 
+    def get_fund_basic(self):
+        ''' Fetch the basic infomation of funds from ourku.com/ccmx/nnnnnn
+pages.
+
+    return value:   {'fund_type':fund_type, 'amount':amount,'origin_date':origin_date}'''  
+        html_tree = lxml.html.fromstring(self.html)
+        table = html_tree.xpath('.//table')[2]
+        tds = table.xpath('./tr/td/text()')
+
+        fund_type = tds[0].split(u'\xa0')[0].split(u'：')[1]
+        origin_date = tds[1].split(u'\xa0')[0].split(u'：')[1]
+        amount = tds[1].split(u'\xa0')[2].split(u'：')[1]
+
+        return {'fund_type':fund_type, 'amount':amount, 
+                'origin_date':origin_date}
+
+
 if __name__ == "__main__":
     fetcher = OurkuFundsInfoFetcher('519996')
+
     stock_data = fetcher.get_stock_data() 
     print stock_data
+
+    fund_info = fetcher.get_fund_basic()
+    for key in fund_info:
+        print key, fund_info[key]

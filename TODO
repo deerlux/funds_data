@@ -3,3 +3,5 @@
 
 2. 将所有抓取的函数以及所有关于数据库操作的函数集合在一起，分别做成两个类或者
    命名空间。
+
+3. check the downloaded pages is valid to analyze.
