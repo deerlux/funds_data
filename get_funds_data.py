@@ -20,7 +20,7 @@ USAGE:
 $Id$
 
 """
-
+from __future__ import with_statement
 import urllib, urllib2, re, io, os.path, datetime, json
 import ConfigParser
 
@@ -28,6 +28,7 @@ from sqlalchemy import *
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 import argparse
+
 
 def weekend_proc(in_date):
     '''判断是否是周末，如果是周末的话自动将日期减1或2换算成周五
@@ -95,8 +96,11 @@ def data2db_simple(conn, funds):
         sql += ','.join(funds_value_values)
         cursor.execute(sql)
         conn.commit()
+
+        conn.close()
         return len(funds_value_values)
     else:
+        conn.close()
         return 0
 
 
@@ -170,13 +174,11 @@ def get_jrj_data(data_date):
         req = urllib2.Request(url,urllib.urlencode(para))
         response = urllib2.urlopen(req)
         the_page = response.read().decode('gbk')
-        datafile = io.open(datafile_name, 'w')
-        datafile.write(the_page)
-        datafile.close()
+        with open(datafile_name, 'w') as datafile:
+            datafile.write(the_page)
     else:
-        datafile = io.open(datafile_name,'r')
-        the_page = datafile.read()
-        datafile.close()
+        with open(datafile_name,'r') as datafile:
+            the_page = datafile.read()
     # 匹配出基金相关的数据
     pattern = re.compile(r'(?<=JSON_DATA.push\()(.+)(?=\);)')
     funds_raw = pattern.findall(the_page)
@@ -208,14 +210,21 @@ def get_ourku_data(data_date):
 
     temp_filename =  '/tmp/ourku.com-' + str(data_date) + '.dat'
     if os.path.exists(temp_filename):
-        the_page = file(temp_filename,'r').read()
+        with open(temp_filename) as f:
+            the_page = f.read()
     else:
         url = r'http://www.ourku.com/indexMore.php'
         para = {'date':data_date.strftime('%Y-%m-%d')}
-        req = urllib2.Request(url,urllib.urlencode(para))
-        response = urllib2.urlopen(req)
-        the_page = response.read()
-        file(temp_filename,'w').write(the_page)
+        while True:
+            req = urllib2.Request(url,urllib.urlencode(para))
+            response = urllib2.urlopen(req)
+            the_page = response.read()
+            if the_page.endswith('</html>\n'):
+                break
+            else:
+                print("The fetched page is not complete, repeat fetch")
+        with open(temp_filename,'w') as f:
+            f.write(the_page)
     the_page = the_page.decode('gbk')
 
 # 用正则表达式过滤基金数据
