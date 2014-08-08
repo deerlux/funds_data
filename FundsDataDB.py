@@ -51,6 +51,11 @@ class FundsDataDB:
         self.FundsAmount = FundsAmount
         self.FundsType = FundsType
 
+        self.query = self.session.query
+        self.add = self.session.add
+        self.commit = self.session.commit
+        self.rollback = self.session.rollback
+
 
     def __del__(self):
         self.session.close()
