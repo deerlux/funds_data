@@ -105,7 +105,10 @@ pages.
             print("The unit of fund amount if invalid: %s" % self.fund_code)
             amount = float(temp[0])
 
-        origin_date = datetime.strptime(origin_date, '%Y-%m-%d').date()
+        try:
+            origin_date = datetime.strptime(origin_date, '%Y-%m-%d').date()
+        except:
+            origin_date = None
 
 
         return {'fund_type':fund_type, 'amount':amount, 
