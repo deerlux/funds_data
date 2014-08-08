@@ -4,4 +4,12 @@
 2. 将所有抓取的函数以及所有关于数据库操作的函数集合在一起，分别做成两个类或者
    命名空间。
 
-3. check the downloaded pages is valid to analyze.
+3. The data of ourku.com is not completely. hexun or jrj is the candidate.
+
+COMPLETED:
+
+3. check the downloaded pages is valid to analyze. ( if the page endswith
+</html>)
+
+A: It is proved that xxx.endswith('</html>') checking will result in dead loop.
+A: The page is endswith '</html>\n'
