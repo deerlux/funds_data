@@ -49,17 +49,25 @@ class OurkuFundsInfoFetcher:
         html_tree = lxml.html.fromstring(self.html)
     
         tables = html_tree.xpath('//table')
+        if not tables:
+            raise StopIteration
 
-        # 抽取其中的“截止日期:2014-06-30"的字眼
-        temp = tables[5].xpath('.//tr/td[1]/text()')[0]
-        public_date = datetime.strptime(temp.split(':')[1], '%Y-%m-%d').date()
+        try:
+            # 抽取其中的“截止日期:2014-06-30"的字眼
+            temp = tables[5].xpath('.//tr/td[1]/text()')[0]
+            public_date = datetime.strptime(temp.split(':')[1], 
+                    '%Y-%m-%d').date()
+        except:
+            public_date = None
 
-        stock_names = tables[6].xpath('.//tr/td[2]/text()')
-        stock_codes = tables[6].xpath('.//tr/td[3]/text()')
-        stock_amount = tables[6].xpath('.//tr/td[4]/text()')
-        stock_value = tables[6].xpath('.//tr/td[5]/text()')
-        stock_value_ratio = tables[6].xpath('.//tr/td[6]/text()')
-        
+        try:
+            stock_names = tables[6].xpath('.//tr/td[2]/text()')
+            stock_codes = tables[6].xpath('.//tr/td[3]/text()')
+            stock_amount = tables[6].xpath('.//tr/td[4]/text()')
+            stock_value = tables[6].xpath('.//tr/td[5]/text()')
+            stock_value_ratio = tables[6].xpath('.//tr/td[6]/text()')
+        except:
+            raise StopIteration
 
         # delete the table header data
         if stock_codes:
