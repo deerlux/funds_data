@@ -45,16 +45,22 @@ class FundsDataDB:
         class FundsType(Base):
             __table__ = sqlalchemy.Table('funds_type', metadata,
                     autoload = True)
+        class StockList(Base):
+            __table__ = sqlalchemy.Table('stock_list', metadata, 
+                    autoload = True)
+
         self.FundsList = FundsList
         self.FundsValue = FundsValue
         self.FundsStockData = FundsStockData
         self.FundsAmount = FundsAmount
         self.FundsType = FundsType
+        self.StockList = StockList
 
         self.query = self.session.query
         self.add = self.session.add
         self.commit = self.session.commit
         self.rollback = self.session.rollback
+        self.flush = self.session.flush
 
 
     def __del__(self):
