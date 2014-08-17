@@ -2,7 +2,8 @@
    全部功能测试无误后再进行抓取工作。
 
 2. 将所有抓取的函数以及所有关于数据库操作的函数集合在一起，分别做成两个类或者
-   命名空间。
+   命名空间。将抓取净值相关的函数集成在类中，并把调用的试验程序都集中在一起。
+   调用相关的函数改写为一个utils.py集成。
 
 3. The data of ourku.com is not completely. hexun or jrj is the candidate.
 
