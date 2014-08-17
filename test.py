@@ -44,12 +44,13 @@ def update_stock(fethcer, db, tmp_path='/tmp'):
                     stock_value_ratio = item['stock_value_ratio'])
             try:
                 db.add(row)
-                db.commit()
                 #print('funds_stock data updated: %s->%s' % (item['fund_code'],
                 #    item['stock_code']))
             except IntegrityError as e:
                 print(e)
                 db.rollback()
+            else:
+                db.commit()
         if i % 50 == 0:
             print('Funds stock data updated: %d' % i)
 
@@ -80,7 +81,6 @@ def update_basic(fetcher, db, tmp_path='/tmp'):
                 try:
                     item = db.FundsType(type_name = basic_info['fund_type'])
                     db.add(item)
-                    db.commit()
                     type_id = db.query(db.FundsType.type_id).\
                         filter_by(type_name = basic_info['fund_type']).\
                         first().type_id
@@ -92,8 +92,24 @@ def update_basic(fetcher, db, tmp_path='/tmp'):
                     db.session.close()
                     type_id = None
                     raise
+                else:
+                    db.commit()
             else:
                 type_id = type_query.type_id
+
+            # update the funds_amount table
+            item = db.FundsAmount(fund_code = v.fund_code,
+                    fund_amount = basic_info['amount'],
+                    public_date = basic_info['public_date'])
+
+            try:
+                db.add(item)
+            except IntegrityError as e:
+                print(e)
+                db.rollback()
+            else:
+                db.commit()
+
             print('Type id is: %d', type_id)
 
             row = db.query(db.FundsList).\
@@ -106,8 +122,6 @@ def update_basic(fetcher, db, tmp_path='/tmp'):
             print('fetch data failed: %s' % v.fund_code)
             print ie
     db.commit()
-
-    return count
 
 
 if __name__ == "__main__":
@@ -130,8 +144,8 @@ if __name__ == "__main__":
     
     fetcher = OurkuFundsInfoFetcher()
     
-    # count = update_basic(fetcher, db, './temp')
-    update_stock(fetcher, db, './temp')
+    count = update_basic(fetcher, db, './temp')
+#    update_stock(fetcher, db, './temp')
 
 
 #    print('\n'.join([x[0] for x in funds_code[0:20] ]))
