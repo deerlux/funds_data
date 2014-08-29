@@ -97,10 +97,10 @@ def data2db_simple(conn, funds):
         cursor.execute(sql)
         conn.commit()
 
-        conn.close()
+#        conn.close()
         return len(funds_value_values)
     else:
-        conn.close()
+#        conn.close()
         return 0
 
 
@@ -315,3 +315,5 @@ if __name__ == "__main__":
         else:
             print('抓取到的数据为0，自动跳过，检查是否此日期为节假日')
         curr_date -= datetime.timedelta(1)
+
+    connect.close()
