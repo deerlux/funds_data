@@ -1,0 +1,9 @@
+[user]
+	email = deerlux@gmail.com
+	username = deerlux
+[color]
+	ui = true
+[alias]
+	ci = commit
+	co = checkout
+	st = status
