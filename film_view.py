@@ -9,6 +9,36 @@ from pandas.io.excel import read_excel
 import numpy as np
 
 import matplotlib
+from matplotlib.font_manager import fontManager
+
+import os.path
+import os
+import datetime
+
+
+class PiaoFangAnalyze:
+
+    def __init__(self, dirname, pub_date=None):
+        self.pub_date = pub_date
+        self.film_name = os.path.basename(dirname)
+
+        self.baidu_fname = dirname + os.path.sep + 'baidu_index.xls'
+        self.douban_fname = dirname + os.path.sep + 'douban_film_score.xls'
+        self.gewara_fname = dirname + os.path.sep + 'gewara.xls'
+        self.piaofang_history_fname = dirname + os.path.sep + \
+                'piaofang168_history.xls'
+        self.piaofang_realtime_fname = dirname + os.path.sep + \
+                'piaofang168_realtime.xls'
+
+
+def __diff_date(pub_date, ds):
+    if pub_date:
+        result = [x.days for x in ds - np.repeat(pub_date, len(ds))]
+    else:
+        result = ds
+    
+    return result
+
 
 def baidu_index(filename, pub_date = None):
     try:
@@ -18,16 +48,12 @@ def baidu_index(filename, pub_date = None):
         return None
     
     ds = [x.date() for x in temp['收集时间']]
-    baidu_f = pd.DataFrame(temp['搜索指数'].tolist(), index=ds, 
-            columns=temp['搜索关键字'].unique())
-    baidu_f2 = baidu_f.groupby(level=0).max()
-        
-    if pub_date :
-        delta_days = [x.days for x in 
-            baidu_f2.index.values - np.repeat(pub_date, len(baidu_f2.index))]
-        baidu_f2.index = delta_days
+    temp.index = __diff_date(pub_date, ds)
 
-    return baidu_f2
+    baidu_f = temp.drop(['内部编号','搜索类型','搜索排名',
+        '搜索趋势','收集时间','更新时间'], axis=1).groupby(level=0).max()
+        
+    return baidu_f
 
 
 def douban_comment(filename, pub_date=None):
@@ -37,19 +63,13 @@ def douban_comment(filename, pub_date=None):
         print(e)
         return None
     
-    ds = [x.date() for x in temp['收集时间']]
+    ds = np.array([x.date() for x in temp['收集时间']])
+    temp.index = __diff_date(pub_date, ds)
 
-    douban_f = pd.DataFrame(temp['评价人数增量'].tolist(), index = ds, 
-        columns = temp['电影名称'].unique())
-    
-    douban_f2 = douban_f.groupby(level=0).max()
+    douban_f = temp.drop(['内部编号','豆瓣编号',
+        '收集时间','更新时间'], axis = 1)
 
-    if pub_date:
-        delta_days = [x.days for x in 
-            douban_f2.index.values - np.repeat(pub_date, len(douban_f2.index))]
-        douban_f2.index = delta_days
-
-    return douban_f2
+    return douban_f
 
 
 def gewara_data(filename, pub_date):
@@ -60,45 +80,56 @@ def gewara_data(filename, pub_date):
         return None
 
     ds = [x.date() for x in temp['收集时间']]
-    temp.index = ds
+    temp.index = __diff_date(pub_date, ds)
 
-    gewara_f = pd.DataFrame({'喜欢人数增量':temp['喜欢人数增量'], 
-        '关注人数增量':temp['关注人数增量'], 
-        '购买人数增量':temp['购买人数增量']})
-
-    gewara_f = gewara_f.groupby(level=0).max()
-
-    if pub_date:
-        delta_days = [x.days for x in gewara_f.index.values 
-                - np.repeat(pub_date, len(gewara_f.index))]
-        gewara_f.index = delta_days
+    gewara_f = temp.drop(['内部编号', '格瓦拉编号', 
+        '收集时间', '更新时间'], axis=1).groupby(level=0).max()
 
     return gewara_f
+
+
+def piaofang_data(filename, pub_date):
+    try:
+        temp = read_excel(filename)
+    except IOError as e:
+        print(e)
+        return None
+
+    ds = [x.date() for x in temp['发布时间']]
+    temp.index = __diff_date(pub_date, ds) 
+    
+    piaofang_f = temp.drop(['内部编号','发布时间','收集时间','更新时间'],
+            axis=1).groupby(level=0).max()
+    
+    return piaofang_f
+
 
 if __name__ == '__main__':
     """如果要显示中文，则修改mpl_data/XXXrc文件，将family以及sans-serif相关的内
     容改一下"""
 
-#    matplotlib.rcParams['font.sans-serif']=['WenQuanYi Micro Hei']
-#    myfont = matplotlib.font_manager.FontProperties(fname='/usr/share/fonts/wenquanyi/wqy-microhei/wqy-microhei.ttc')
+    fontManager.defaultFont['ttf']='~/.fonts/msyh.ttf'
+    matplotlib.rcParams['font.sans-serif']=['Microsoft YaHei']
+    matplotlib.rcParams['font.family']=['sans-serif']
 
-    baidu_f2 = baidu_index('baidu_index.xls', pd.datetime(2014,12,5).date())
+    pub_date = pd.datetime(2014,12,5).date()
+
+    baidu_f = baidu_index('baidu_index.xls', pub_date)
 
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
 
-    ax.plot(baidu_f2.index, baidu_f2['匆匆那年'].values,label ='百度搜索指数',
+    ax.plot(baidu_f.index, baidu_f['搜索指数'].values, label ='百度搜索指数',
             linewidth = 2.5)
     ax.set_xlabel('与上映首日间隔')
 
 
-    douban_f2 = douban_comment('douban_film_score.xls', 
-            pd.datetime(2014,12,5).date())
+    douban_f = douban_comment('douban_film_score.xls', pub_date)
 
-    ax.plot(douban_f2.index, douban_f2['匆匆那年'].values, 
-            label = '豆瓣评价增量', linewidth = 2.5)
+#    ax.plot(douban_f2.index, douban_f2['匆匆那年'].values, 
+#            label = '豆瓣评价增量', linewidth = 2.5)
 
-    gewara_f = gewara_data('gewara.xls', pd.datetime(2014,12,5).date())
+    gewara_f = gewara_data('gewara.xls', pub_date)
     ax.plot(gewara_f.index, 
             gewara_f['喜欢人数增量'].values, label='gewara喜欢人数增量',
             linewidth = 2.5)
@@ -110,14 +141,28 @@ if __name__ == '__main__':
             linewidth = 2.5)
 #    gewara_f.plot(ax=ax, linewidth = 2.5)
     ax.set_xlim(0,20)
+
     ax.legend(loc='best')
     ax.grid('on')
     ax.set_title('匆匆那年')
     ax.set_yscale('log')
     
-    fig.savefig('匆匆那年_log.png')
+    plt.xticks(rotation=45)
     
 
-   
+    pf_f = piaofang_data('piaofang168_history.xls', pub_date)
+    
+    #fig2=plt.figure()
+    #ax2 = fig2.add_subplot(1,1,1)
+    plt.plot(pf_f.index, pf_f['今日票房/万'], label = '票房情况', linewidth=2.5)
+
+    dates = [pub_date+x for x in [datetime.timedelta(y) for y in range(0,21)]]
+    for k,v in enumerate(dates):
+        if v.weekday() == 5:
+            ax.fill_between([k, k+1], ax.get_ylim()[0], 
+                    ax.get_ylim()[1], alpha=0.3)
+
+    fig.savefig('匆匆那年_log.png')
+      
     plt.show()
 
