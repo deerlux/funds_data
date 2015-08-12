@@ -40,6 +40,7 @@ class OurkuPipeline(object):
         db_item.public_date = item['public_date']
         db_item.stock_code = item['stock_code']
         db_item.stock_name = item['stock_name']
+        db_item.stock_amount = item['stock_amount']
         db_item.stock_value = item['stock_value']
         db_item.stock_value_ration = item['stock_value_ratio']
 

@@ -17,3 +17,4 @@ NEWSPIDER_MODULE = 'ourku.spiders'
 #USER_AGENT = 'ourku (+http://www.yourdomain.com)'
 ITEM_PIPELINES = {'ourku.pipelines.OurkuPipeline':300}
 
+LOG_LEVEL = 'INFO'
